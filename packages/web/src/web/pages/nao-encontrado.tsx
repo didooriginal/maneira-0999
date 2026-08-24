@@ -1,7 +1,16 @@
 import { Link } from "wouter";
 import { Coffee } from "lucide-react";
+import { useSeo } from "../hooks/use-seo";
+import { usePageView } from "../hooks/use-analytics";
 
 export default function NaoEncontradoPage() {
+  useSeo({
+    title: "Página não encontrada",
+    description: "Essa página não existe. Volte para o início da Caneca Maneira.",
+    noindex: true,
+  });
+
+  usePageView("/404");
   return (
     <div className="mx-auto grid max-w-xl place-items-center px-4 py-24 text-center">
       <div className="sticker grain relative w-full overflow-hidden bg-blue p-10">

@@ -1,55 +1,47 @@
-import { useEffect, useState } from "react";
 import { Link, useParams } from "wouter";
 import {
   Check,
   ChevronLeft,
-  Minus,
-  Plus,
+  Palette,
   RefreshCcw,
   ShieldCheck,
-  ShoppingBag,
   Truck,
 } from "lucide-react";
 import { FaWhatsapp } from "react-icons/fa6";
 import { useProduct } from "../queries/catalog";
-import { useCart } from "../components/cart-context";
 import { ProductCard } from "../components/product-card";
 import { Skeleton, Stars } from "../components/ui/bits";
-import { formatPrice, installments, whatsappLink } from "../lib/site";
-import { cn } from "../lib/utils";
+import { whatsappLink } from "../lib/site";
+import { useSeo } from "../hooks/use-seo";
+import { usePageView } from "../hooks/use-analytics";
 
 const perks = [
-  { icon: Truck, text: "Frete grátis acima de R$ 199" },
-  { icon: ShieldCheck, text: "Quebrou no transporte? Refazemos" },
+  { icon: Palette, text: "Arte criada ou ajustada por nós, sem custo extra" },
   { icon: RefreshCcw, text: "Prova digital antes de produzir" },
+  { icon: ShieldCheck, text: "Quebrou no transporte? Refazemos" },
+  { icon: Truck, text: "Enviamos para todo o Brasil" },
 ];
 
+/**
+ * Página de um modelo já produzido. Serve como inspiração: não tem preço nem
+ * carrinho — o caminho é sempre o formulário de pedido ou o WhatsApp.
+ */
 export default function ProdutoPage() {
   const { slug = "" } = useParams<{ slug: string }>();
   const query = useProduct(slug);
-  const cart = useCart();
-
-  const [color, setColor] = useState<string | null>(null);
-  const [size, setSize] = useState<string | null>(null);
-  const [customText, setCustomText] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [added, setAdded] = useState(false);
-
   const product = query.data?.product;
+  const related = query.data?.related ?? [];
 
-  useEffect(() => {
-    if (!product) return;
-    setColor(product.colorOptions[0] ?? null);
-    setSize(product.sizeOptions[0] ?? null);
-    setQuantity(1);
-    setCustomText("");
-  }, [product]);
+  useSeo({
+    title: product ? `${product.name} — modelo personalizado` : "Modelo",
+    description: product
+      ? `${product.name}: ${(product.description ?? "").slice(0, 130)}`.trim()
+      : "Veja este modelo de personalizado da Caneca Maneira e peça o seu.",
+    noindex: !product,
+  });
 
-  useEffect(() => {
-    if (!added) return;
-    const id = setTimeout(() => setAdded(false), 2200);
-    return () => clearTimeout(id);
-  }, [added]);
+  // Só registra depois que o produto carregou, senão o título ainda é genérico.
+  usePageView(product ? `/caneca/${slug}` : "");
 
   if (query.isLoading) {
     return (
@@ -68,36 +60,18 @@ export default function ProdutoPage() {
   if (query.isError || !product) {
     return (
       <div className="mx-auto max-w-2xl px-5 py-24 text-center md:px-8">
-        <h1 className="text-4xl">Caneca não encontrada</h1>
+        <h1 className="text-4xl">Modelo não encontrado</h1>
         <p className="mt-3 text-navy/65">
-          Essa página sumiu do balcão. Dá uma olhada no catálogo.
+          Essa página sumiu do balcão. Dá uma olhada nos modelos que já fizemos.
         </p>
         <Link to="/catalogo" className="btn btn-primary mt-7">
-          Ver catálogo
+          Ver modelos que já fizemos
         </Link>
       </div>
     );
   }
 
-  const discount = product.comparePrice
-    ? Math.round((1 - product.price / product.comparePrice) * 100)
-    : null;
-
-  function handleAdd() {
-    if (!product) return;
-    cart.add({
-      productId: product.id,
-      slug: product.slug,
-      name: product.name,
-      image: product.image,
-      price: product.price,
-      quantity,
-      colorOption: color,
-      sizeOption: size,
-      customText: customText.trim() || null,
-    });
-    setAdded(true);
-  }
+  const waMessage = `Oi! Vi o modelo "${product.name}" no site e quero um parecido.`;
 
   return (
     <>
@@ -107,7 +81,7 @@ export default function ProdutoPage() {
           className="inline-flex items-center gap-1 text-sm font-semibold text-navy/60 transition hover:text-navy"
         >
           <ChevronLeft className="size-4" strokeWidth={3} />
-          voltar ao catálogo
+          voltar aos modelos
         </Link>
       </div>
 
@@ -119,205 +93,98 @@ export default function ProdutoPage() {
               alt={product.name}
               className="aspect-square w-full object-cover"
             />
-            <div className="absolute top-4 left-4 flex flex-col items-start gap-2">
-              {product.badge ? (
-                <span className="tag bg-yellow">{product.badge}</span>
-              ) : null}
-              {discount ? (
-                <span className="tag bg-magenta text-white">-{discount}%</span>
-              ) : null}
+            {product.badge ? (
+              <span className="tag absolute top-4 left-4 bg-yellow">
+                {product.badge}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="reveal">
+          <span className="tag bg-mint">Modelo que já fizemos</span>
+          <h1 className="mt-4 text-[clamp(1.9rem,4.5vw,3rem)] leading-tight">
+            {product.name}
+          </h1>
+
+          {/* Estrelas só aparecem quando existe avaliação real cadastrada. */}
+          {product.reviewCount > 0 ? (
+            <div className="mt-3 flex items-center gap-2">
+              <Stars value={product.rating} />
+              <span className="text-sm text-navy/55">
+                {product.reviewCount} avaliações
+              </span>
+            </div>
+          ) : null}
+
+          <p className="mt-5 text-lg text-navy/75">{product.description}</p>
+
+          {product.highlights.length > 0 ? (
+            <ul className="mt-6 space-y-2">
+              {product.highlights.map((item) => (
+                <li key={item} className="flex items-start gap-2 text-navy/80">
+                  <Check
+                    className="mt-0.5 size-5 shrink-0 text-magenta"
+                    strokeWidth={3}
+                  />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
+          {product.colorOptions.length > 0 || product.sizeOptions.length > 0 ? (
+            <div className="mt-6 flex flex-wrap gap-2">
+              {[...product.colorOptions, ...product.sizeOptions].map((item) => (
+                <span key={item} className="tag bg-cream">
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="sticker mt-8 bg-yellow p-6">
+            <h2 className="text-xl">Quer um parecido com esse?</h2>
+            <p className="mt-1 text-sm text-navy/75">
+              A gente refaz esse modelo com a sua foto, o seu nome e as suas
+              cores. Sem custo extra pela arte.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <Link to="/pedido/caneca" className="btn btn-navy flex-1">
+                Fazer meu pedido
+              </Link>
+              <a
+                href={whatsappLink(waMessage)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-primary flex-1"
+              >
+                <FaWhatsapp className="size-5" />
+                Chamar no WhatsApp
+              </a>
             </div>
           </div>
 
-          <ul className="mt-4 grid gap-2 sm:grid-cols-3">
+          <ul className="mt-6 grid gap-2 sm:grid-cols-2">
             {perks.map((perk) => (
               <li
                 key={perk.text}
-                className="flex items-center gap-2 rounded-2xl border-[3px] border-navy/15 bg-white px-3 py-2.5 text-xs font-semibold"
+                className="flex items-start gap-2 text-sm text-navy/70"
               >
-                <perk.icon className="size-4 shrink-0" strokeWidth={2.5} />
+                <perk.icon className="mt-0.5 size-4 shrink-0 text-magenta" />
                 {perk.text}
               </li>
             ))}
           </ul>
         </div>
-
-        <div className="reveal" style={{ animationDelay: "80ms" }}>
-          <div className="flex items-center gap-3">
-            <Stars value={product.rating} />
-            <span className="text-sm text-navy/55">
-              {product.rating.toFixed(1)} · {product.reviewCount} avaliações
-            </span>
-          </div>
-
-          <h1 className="mt-3 text-[clamp(2rem,4.5vw,3.2rem)]">{product.name}</h1>
-          <p className="mt-3 text-navy/75">{product.description}</p>
-
-          <div className="mt-6 flex flex-wrap items-end gap-3">
-            {product.comparePrice ? (
-              <span className="text-lg text-navy/40 line-through">
-                {formatPrice(product.comparePrice)}
-              </span>
-            ) : null}
-            <span className="font-display text-5xl leading-none font-extrabold">
-              {formatPrice(product.price)}
-            </span>
-            <span className="mb-1 text-sm text-navy/60">
-              ou {installments(product.price)}
-            </span>
-          </div>
-
-          <ul className="mt-6 space-y-2">
-            {product.highlights.map((h) => (
-              <li key={h} className="flex items-start gap-2 text-sm">
-                <Check className="mt-0.5 size-4 shrink-0 text-magenta" strokeWidth={3} />
-                {h}
-              </li>
-            ))}
-          </ul>
-
-          <div className="sticker mt-8 space-y-5 p-5">
-            {product.sizeOptions.length > 0 ? (
-              <div>
-                <span className="field-label">Tamanho</span>
-                <div className="flex flex-wrap gap-2">
-                  {product.sizeOptions.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setSize(option)}
-                      className={cn(
-                        "rounded-full border-[3px] border-navy px-4 py-1.5 text-sm font-bold transition",
-                        size === option
-                          ? "bg-navy text-cream"
-                          : "bg-cream hover:bg-yellow",
-                      )}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {product.colorOptions.length > 0 ? (
-              <div>
-                <span className="field-label">Cor / acabamento</span>
-                <div className="flex flex-wrap gap-2">
-                  {product.colorOptions.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setColor(option)}
-                      className={cn(
-                        "rounded-full border-[3px] border-navy px-4 py-1.5 text-sm font-bold transition",
-                        color === option
-                          ? "bg-navy text-cream"
-                          : "bg-cream hover:bg-yellow",
-                      )}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {product.allowsCustomArt ? (
-              <div>
-                <label className="field-label" htmlFor="custom-text">
-                  Nome ou frase na caneca (opcional)
-                </label>
-                <input
-                  id="custom-text"
-                  value={customText}
-                  onChange={(e) => setCustomText(e.target.value.slice(0, 60))}
-                  placeholder="Ex.: Para a melhor mãe do mundo"
-                  className="field"
-                />
-                <p className="mt-1.5 text-xs text-navy/55">
-                  {customText.length}/60 · A arte final é enviada por WhatsApp
-                  para sua aprovação antes de produzir.
-                </p>
-              </div>
-            ) : null}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 rounded-full border-[3px] border-navy bg-cream px-1.5 py-1">
-                <button
-                  type="button"
-                  aria-label="Diminuir quantidade"
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="grid size-8 place-items-center rounded-full transition hover:bg-yellow"
-                >
-                  <Minus className="size-4" strokeWidth={3} />
-                </button>
-                <span className="min-w-8 text-center font-display text-lg font-bold">
-                  {quantity}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Aumentar quantidade"
-                  onClick={() => setQuantity((q) => Math.min(500, q + 1))}
-                  className="grid size-8 place-items-center rounded-full transition hover:bg-yellow"
-                >
-                  <Plus className="size-4" strokeWidth={3} />
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleAdd}
-                className={cn("btn flex-1", added ? "btn-blue" : "btn-primary")}
-              >
-                {added ? (
-                  <>
-                    <Check className="size-5" strokeWidth={3} />
-                    Adicionado!
-                  </>
-                ) : (
-                  <>
-                    <ShoppingBag className="size-5" strokeWidth={2.5} />
-                    Adicionar ao carrinho · {formatPrice(product.price * quantity)}
-                  </>
-                )}
-              </button>
-            </div>
-
-            <a
-              href={whatsappLink(
-                `Oi! Tenho interesse na ${product.name}. Pode me ajudar?`,
-              )}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-2 text-sm font-semibold text-navy/65 underline underline-offset-4 transition hover:text-navy"
-            >
-              <FaWhatsapp className="size-4" />
-              Tirar dúvida no WhatsApp
-            </a>
-          </div>
-
-          {quantity >= 10 ? (
-            <div className="mt-4 rounded-2xl border-[3px] border-navy bg-mint px-4 py-3 text-sm font-semibold">
-              10+ unidades? Peça um{" "}
-              <Link to="/orcamento" className="underline underline-offset-4">
-                orçamento por volume
-              </Link>{" "}
-              e pague menos por peça.
-            </div>
-          ) : null}
-        </div>
       </section>
 
-      {query.data && query.data.related.length > 0 ? (
+      {related.length > 0 ? (
         <section className="mx-auto max-w-7xl px-5 pb-20 md:px-8">
-          <h2 className="text-3xl">
-            Combina com essa{" "}
-            <span className="script text-magenta text-[1.1em]">também</span>
-          </h2>
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {query.data.related.map((p, i) => (
-              <ProductCard key={p.id} product={p} index={i} />
+          <h2 className="text-3xl">Outros modelos parecidos</h2>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {related.map((item, index) => (
+              <ProductCard key={item.id} product={item} index={index} />
             ))}
           </div>
         </section>

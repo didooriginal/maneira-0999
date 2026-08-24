@@ -1,19 +1,36 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Instagram, Mail, MapPin, Menu, ShoppingBag, X } from "lucide-react";
+import { Bike, Instagram, MapPin, Menu, X } from "lucide-react";
 import { FaWhatsapp } from "react-icons/fa6";
-import { useCart } from "./cart-context";
-import { CartDrawer } from "./cart-drawer";
+import { gaEvent, gaLead } from "../lib/ga";
 import { site, whatsappLink } from "../lib/site";
 import { cn } from "../lib/utils";
+import { ChatLauncher } from "./chat-launcher";
+import { FaixaEmpresas } from "./faixa-empresas";
+import { FaixaSazonal } from "./faixa-sazonal";
+import { PopupNovidade } from "./popup-novidade";
+import { BotaoSacola, GavetaSacola } from "./sacola";
 import { Wave } from "./ui/bits";
 
+/**
+ * Menu principal enxuto: cada item responde uma pergunta diferente.
+ * "Tipos de caneca" = que peça existe (e preço). "Modelos prontos" = arte
+ * pronta para comprar agora. O que é apoio (modelos já produzidos, fotos)
+ * vive no rodapé e dentro das páginas, para não diluir a escolha aqui em cima.
+ */
 const nav = [
-  { to: "/catalogo", label: "Catálogo" },
-  { to: "/galeria", label: "Galeria" },
-  { to: "/orcamento", label: "Orçamento" },
+  { to: "/pedido", label: "Fazer meu pedido" },
+  { to: "/prontos", label: "Modelos prontos" },
+  { to: "/modelos", label: "Tipos de caneca" },
+  { to: "/empresas", label: "Para empresas" },
   { to: "/sobre", label: "Sobre" },
   { to: "/contato", label: "Contato" },
+];
+
+/** Rodapé: o menu inteiro + as páginas de apoio que saíram do topo. */
+const navRodape = [
+  ...nav,
+  { to: "/catalogo", label: "Modelos que já fizemos" },
 ];
 
 function Logo() {
@@ -31,7 +48,6 @@ function Logo() {
 }
 
 function Header() {
-  const cart = useCart();
   const [location] = useLocation();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -73,6 +89,7 @@ function Header() {
         </nav>
 
         <div className="flex items-center gap-2">
+          {location.startsWith("/painel") ? null : <BotaoSacola />}
           <a
             href={whatsappLink("Oi! Vim pelo site e quero uma caneca personalizada.")}
             target="_blank"
@@ -82,19 +99,6 @@ function Header() {
             <FaWhatsapp className="size-4" />
             WhatsApp
           </a>
-          <button
-            type="button"
-            onClick={cart.open}
-            aria-label="Abrir carrinho"
-            className="relative rounded-full border-[3px] border-navy bg-yellow p-2.5 shadow-[3px_3px_0_var(--color-navy)] transition hover:-translate-y-0.5"
-          >
-            <ShoppingBag className="size-5" strokeWidth={2.5} />
-            {cart.count > 0 ? (
-              <span className="absolute -top-2 -right-2 grid min-w-6 place-items-center rounded-full border-2 border-navy bg-magenta px-1 text-xs font-bold text-white">
-                {cart.count}
-              </span>
-            ) : null}
-          </button>
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -174,20 +178,13 @@ function Footer() {
             >
               <FaWhatsapp className="size-5" />
             </a>
-            <a
-              href={`mailto:${site.email}`}
-              aria-label="E-mail"
-              className="grid size-11 place-items-center rounded-full border-[3px] border-cream/30 transition hover:border-yellow hover:text-yellow"
-            >
-              <Mail className="size-5" strokeWidth={2.5} />
-            </a>
           </div>
         </div>
 
         <div>
           <p className="font-display text-lg font-bold text-yellow">Navegar</p>
           <ul className="mt-4 space-y-2 text-sm text-cream/75">
-            {nav.map((item) => (
+            {navRodape.map((item) => (
               <li key={item.to}>
                 <Link to={item.to} className="transition hover:text-yellow">
                   {item.label}
@@ -205,10 +202,6 @@ function Footer() {
               {site.whatsappDisplay}
             </li>
             <li className="flex items-start gap-2">
-              <Mail className="mt-0.5 size-4 shrink-0 text-yellow" strokeWidth={2.5} />
-              {site.email}
-            </li>
-            <li className="flex items-start gap-2">
               <Instagram className="mt-0.5 size-4 shrink-0 text-yellow" strokeWidth={2.5} />
               @{site.instagram}
             </li>
@@ -216,13 +209,28 @@ function Footer() {
               <MapPin className="mt-0.5 size-4 shrink-0 text-yellow" strokeWidth={2.5} />
               {site.address}
               <br />
+              Rua José Sombra, 336 — Irajá (produção)
+              <br />
               {site.city} · {site.hours}
+            </li>
+            <li className="flex items-start gap-2">
+              <Bike className="mt-0.5 size-4 shrink-0 text-yellow" strokeWidth={2.5} />
+              No Rio: motoboy por aplicativo ou retirada a combinar
             </li>
           </ul>
         </div>
       </div>
-      <div className="border-t border-cream/15 px-5 py-5 text-center text-xs text-cream/50 md:px-8">
-        © {new Date().getFullYear()} Caneca Maneira. Todos os direitos reservados.
+      <div className="flex flex-col items-center justify-center gap-2 border-t border-cream/15 px-5 py-5 text-center text-xs text-cream/50 sm:flex-row sm:gap-4 md:px-8">
+        <span>
+          © {new Date().getFullYear()} Caneca Maneira. Todos os direitos
+          reservados.
+        </span>
+        <Link
+          to="/privacidade"
+          className="underline transition hover:text-cream"
+        >
+          Política de Privacidade
+        </Link>
       </div>
     </footer>
   );
@@ -235,7 +243,11 @@ function WhatsAppFab() {
       target="_blank"
       rel="noreferrer"
       aria-label="Falar no WhatsApp"
-      className="fixed right-5 bottom-5 z-[60] grid size-14 place-items-center rounded-full border-[3px] border-navy bg-[#25D366] shadow-[4px_4px_0_var(--color-navy)] transition hover:-translate-y-1 hover:shadow-[6px_6px_0_var(--color-navy)]"
+      /* bottom-20 (80px) em vez de bottom-5: o selo "Made with Runable" é
+         fixo no rodapé com z-index 10000 e cobria os 2/3 de baixo deste
+         botão, roubando o clique. O selo é da plataforma e não pode ser
+         removido, então o botão sobe pra ficar inteiro clicável. */
+      className="fixed right-5 bottom-20 z-[60] grid size-14 place-items-center rounded-full border-[3px] border-navy bg-[#25D366] shadow-[4px_4px_0_var(--color-navy)] transition hover:-translate-y-1 hover:shadow-[6px_6px_0_var(--color-navy)]"
     >
       <FaWhatsapp className="size-7 text-navy" />
     </a>
@@ -249,13 +261,52 @@ export function Layout({ children }: { children: React.ReactNode }) {
     window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   }, [location]);
 
+  /* Um único listener no documento cobre TODOS os links de WhatsApp do site
+     (header, footer, botão flutuante, cards, páginas). Cada clique conta como
+     conversão `gerar_lead` no GA4 — é o nosso "checkout", já que o pedido
+     fecha na conversa. */
+  useEffect(() => {
+    function onClick(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest?.("a");
+      if (!anchor) return;
+      const href = anchor.getAttribute("href") ?? "";
+      if (!href.startsWith("https://wa.me/")) return;
+      gaEvent("clique_whatsapp", {
+        page_path: window.location.pathname,
+        label: (anchor.getAttribute("aria-label") || anchor.textContent || "")
+          .trim()
+          .slice(0, 80),
+      });
+      gaLead("whatsapp", { page_path: window.location.pathname });
+      window.stonks?.event("clique_whatsapp", {
+        path: window.location.pathname,
+      });
+    }
+    document.addEventListener("click", onClick, { capture: true });
+    return () =>
+      document.removeEventListener("click", onClick, { capture: true });
+  }, []);
+
+  /* No painel interno some com faixa de campanha, botão flutuante e chat:
+     são coisas de visitante e ficavam por cima dos botões de edição. */
+  const interno = location.startsWith("/painel");
+
   return (
     <div className="flex min-h-screen flex-col">
+      {interno ? null : <FaixaSazonal />}
       <Header />
+      {interno ? null : <FaixaEmpresas />}
       <main className="flex-1">{children}</main>
       <Footer />
-      <WhatsAppFab />
-      <CartDrawer />
+      {interno ? null : (
+        <>
+          <GavetaSacola />
+          <WhatsAppFab />
+          <ChatLauncher />
+          <PopupNovidade />
+        </>
+      )}
     </div>
   );
 }

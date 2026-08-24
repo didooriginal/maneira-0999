@@ -5,19 +5,20 @@ import {
   CheckCircle2,
   Clock,
   Instagram,
-  Mail,
   MapPin,
+  Star,
   MessageCircle,
   Plus,
   Truck,
 } from "lucide-react";
-import { useCreateQuote } from "../queries/catalog";
+import { useAvaliacoes, useCreateQuote } from "../queries/catalog";
 import { SectionTitle, Spinner, Wave } from "../components/ui/bits";
 import { site, whatsappLink } from "../lib/site";
+import { useSeo } from "../hooks/use-seo";
+import { usePageView } from "../hooks/use-analytics";
 
 interface ContactForm {
   name: string;
-  email: string;
   phone: string;
   message: string;
 }
@@ -41,7 +42,7 @@ const faq = [
   },
   {
     q: "Vocês entregam em todo o Brasil?",
-    a: "Sim, enviamos para todo o país pelos Correios e transportadora. Frete grátis em compras acima de R$ 199.",
+    a: "Sim, enviamos para todo o país pelos Correios e transportadora. No formulário de pedido você calcula o frete pelo seu CEP, ou pode retirar sem custo na nossa loja no Mercado Popular Uruguaiana.",
   },
   {
     q: "E se a caneca chegar quebrada?",
@@ -59,11 +60,11 @@ const channels = [
     color: "bg-mint",
   },
   {
-    icon: Mail,
-    title: "E-mail",
-    value: site.email,
-    hint: "Para propostas, notas fiscais e parcerias",
-    href: `mailto:${site.email}`,
+    icon: Truck,
+    title: "Formulário de pedido",
+    value: "Monte seu pedido em 1 minuto",
+    hint: "Escolha modelo, quantidade e já veja a estimativa e o frete",
+    href: "/pedido",
     color: "bg-yellow",
   },
   {
@@ -77,7 +78,15 @@ const channels = [
 ];
 
 export default function ContatoPage() {
+  useSeo({
+    title: "Contato",
+    description:
+      "Fale com a Caneca Maneira pelo WhatsApp (21) 97549-8978 ou visite a loja no Mercado Popular Uruguaiana, centro do Rio de Janeiro.",
+  });
+  usePageView("/contato");
   const createQuote = useCreateQuote();
+  // Nota do Google editável no painel (aba "Avaliações").
+  const avaliacoes = useAvaliacoes();
   const [sent, setSent] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
@@ -91,7 +100,6 @@ export default function ContatoPage() {
   async function onSubmit(values: ContactForm) {
     await createQuote.mutateAsync({
       name: values.name,
-      email: values.email,
       phone: values.phone,
       clientType: "pessoal",
       quantity: 1,
@@ -122,24 +130,37 @@ export default function ContatoPage() {
 
       <section className="mx-auto max-w-6xl px-4 py-14">
         <div className="grid gap-5 md:grid-cols-3">
-          {channels.map((channel) => (
-            <a
-              key={channel.title}
-              href={channel.href}
-              target="_blank"
-              rel="noreferrer"
-              className={`sticker sticker-hover reveal block p-6 ${channel.color}`}
-            >
-              <div className="grid size-12 place-items-center rounded-full border-[3px] border-navy bg-cream">
-                <channel.icon className="size-6" />
-              </div>
-              <h2 className="mt-4 text-xl">{channel.title}</h2>
-              <strong className="mt-1 block font-display text-lg">
-                {channel.value}
-              </strong>
-              <p className="mt-1 text-sm text-navy/70">{channel.hint}</p>
-            </a>
-          ))}
+          {channels.map((channel) => {
+            const internal = channel.href.startsWith("/");
+            const Card = (
+              <>
+                <div className="grid size-12 place-items-center rounded-full border-[3px] border-navy bg-cream">
+                  <channel.icon className="size-6" />
+                </div>
+                <h2 className="mt-4 text-xl">{channel.title}</h2>
+                <strong className="mt-1 block font-display text-lg">
+                  {channel.value}
+                </strong>
+                <p className="mt-1 text-sm text-navy/70">{channel.hint}</p>
+              </>
+            );
+            const className = `sticker sticker-hover reveal block p-6 ${channel.color}`;
+            return internal ? (
+              <Link key={channel.title} to={channel.href} className={className}>
+                {Card}
+              </Link>
+            ) : (
+              <a
+                key={channel.title}
+                href={channel.href}
+                target="_blank"
+                rel="noreferrer"
+                className={className}
+              >
+                {Card}
+              </a>
+            );
+          })}
         </div>
 
         <div className="mt-5 grid gap-5 sm:grid-cols-3">
@@ -149,6 +170,8 @@ export default function ContatoPage() {
               <h3 className="text-base">Onde estamos</h3>
               <p className="text-sm text-navy/70">
                 {site.address}
+                <br />
+                Rua José Sombra, 336 — Irajá (produção)
                 <br />
                 {site.city}
               </p>
@@ -166,11 +189,39 @@ export default function ContatoPage() {
             <div>
               <h3 className="text-base">Entregas</h3>
               <p className="text-sm text-navy/70">
-                Brasil inteiro. Frete grátis acima de R$ 199.
+                No Rio, motoboy por aplicativo (sai de Irajá) ou retirada em
+                mãos no Centro ou em Irajá. Para o resto do Brasil, calcule o
+                frete pelo CEP no formulário de pedido.
               </p>
             </div>
           </div>
         </div>
+
+        <a
+          href={avaliacoes.data?.profileUrl ?? site.googleProfileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="sticker mt-5 flex flex-col items-start gap-4 bg-yellow p-5 transition hover:-translate-y-0.5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-3">
+            <Star className="size-5 shrink-0 fill-navy text-navy" />
+            <div>
+              <h3 className="text-base">
+                {(avaliacoes.data?.rating ?? site.googleRating)
+                  .toFixed(1)
+                  .replace(".", ",")}{" "}
+                de 5 no Google
+              </h3>
+              <p className="text-sm text-navy/75">
+                {avaliacoes.data?.reviewCount ?? site.googleReviewCount}{" "}
+                avaliações de clientes reais. Se a sua
+                caneca chegou bonita, deixa uma estrelinha lá — ajuda demais
+                outra pessoa a encontrar a gente.
+              </p>
+            </div>
+          </div>
+          <span className="btn btn-navy shrink-0">Avaliar no Google</span>
+        </a>
       </section>
 
       <section className="mx-auto max-w-6xl px-4 pb-20">
@@ -219,27 +270,7 @@ export default function ContatoPage() {
                   ) : null}
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="field-label" htmlFor="c-email">
-                      E-mail
-                    </label>
-                    <input
-                      id="c-email"
-                      type="email"
-                      className="field"
-                      placeholder="voce@email.com"
-                      {...register("email", {
-                        required: true,
-                        pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                      })}
-                    />
-                    {errors.email ? (
-                      <span className="mt-1 block text-xs font-semibold text-magenta">
-                        E-mail inválido.
-                      </span>
-                    ) : null}
-                  </div>
+                <div>
                   <div>
                     <label className="field-label" htmlFor="c-phone">
                       WhatsApp
@@ -297,8 +328,8 @@ export default function ContatoPage() {
                 </button>
                 <p className="text-center text-xs text-navy/60">
                   Precisa de um lote grande?{" "}
-                  <Link href="/orcamento" className="font-semibold underline">
-                    Peça um orçamento
+                  <Link href="/pedido" className="font-semibold underline">
+                    Faça seu pedido
                   </Link>
                   .
                 </p>

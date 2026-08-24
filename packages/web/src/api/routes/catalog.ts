@@ -1,9 +1,12 @@
 import { z } from "zod";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { ORPCError } from "@orpc/server";
 import { base } from "../__core/app";
 import { db } from "../database";
 import * as schema from "../database/schema";
+import { lerHero } from "../lib/hero";
+import { lerAvaliacoes } from "../lib/avaliacoes";
+import { lerPopupAtivo } from "../lib/popup";
 
 type ProductRow = typeof schema.products.$inferSelect;
 
@@ -52,6 +55,7 @@ export const catalog = {
       const rows = await db
         .select()
         .from(schema.products)
+        .where(eq(schema.products.hidden, false))
         .orderBy(asc(schema.products.sortOrder));
 
       let list = rows.map(serializeProduct);
@@ -98,7 +102,12 @@ export const catalog = {
       const related = await db
         .select()
         .from(schema.products)
-        .where(eq(schema.products.categorySlug, row.categorySlug))
+        .where(
+          and(
+            eq(schema.products.categorySlug, row.categorySlug),
+            eq(schema.products.hidden, false),
+          ),
+        )
         .orderBy(asc(schema.products.sortOrder));
 
       return {
@@ -124,11 +133,42 @@ export const catalog = {
       .orderBy(asc(schema.galleryItems.sortOrder)),
   ),
 
-  latestOrders: base.handler(async () =>
-    db
-      .select({ code: schema.orders.code, createdAt: schema.orders.createdAt })
-      .from(schema.orders)
-      .orderBy(desc(schema.orders.createdAt))
-      .limit(5),
-  ),
+  /**
+   * Faixa sazonal que está valendo hoje (Dia dos Pais, Natal...).
+   * A data é resolvida no fuso de São Paulo — o servidor pode estar em UTC,
+   * e uma faixa que termina "hoje" tem que valer até o fim do dia no Brasil.
+   * Devolve no máximo uma: a que começou mais recentemente.
+   */
+  activeBanner: base.handler(async () => {
+    const hoje = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const rows = await db
+      .select()
+      .from(schema.seasonalBanners)
+      .where(
+        and(
+          eq(schema.seasonalBanners.active, true),
+          lte(schema.seasonalBanners.startsOn, hoje),
+          gte(schema.seasonalBanners.endsOn, hoje),
+        ),
+      )
+      .orderBy(desc(schema.seasonalBanners.startsOn))
+      .limit(1);
+
+    return rows[0] ?? null;
+  }),
+
+  /** Topo da home: foto, títulos e selinhos, editáveis no painel. */
+  hero: base.handler(async () => lerHero()),
+
+  /** Popup de novidade/promoção. null = desligado ou fora do período. */
+  popup: base.handler(async () => lerPopupAtivo()),
+
+  /** Nota do Google mostrada na home, editável no painel. */
+  avaliacoes: base.handler(async () => lerAvaliacoes()),
 };

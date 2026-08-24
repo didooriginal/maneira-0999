@@ -11,12 +11,18 @@ import {
 } from "lucide-react";
 import { SectionTitle, Wave } from "../components/ui/bits";
 import { site, whatsappLink } from "../lib/site";
+import { useSeo } from "../hooks/use-seo";
+import { usePageView } from "../hooks/use-analytics";
 
+/**
+ * Selos sem número inventado. Só entra aqui informação que a gente consegue
+ * comprovar: tempo de casa, onde é feito, o que está incluso e o pedido mínimo.
+ */
 const numbers = [
-  { value: "+12 mil", label: "canecas estampadas" },
-  { value: "+800", label: "clientes felizes" },
-  { value: "4,9", label: "nota média nas avaliações" },
-  { value: "24h", label: "para responder um orçamento" },
+  { value: "+6 anos", label: "estampando no Rio" },
+  { value: "Feito no Rio", label: "produção própria em Irajá" },
+  { value: "Arte inclusa", label: "prova digital antes de imprimir" },
+  { value: "1 peça", label: "já dá pra fazer o pedido" },
 ];
 
 const values = [
@@ -55,7 +61,7 @@ const timeline = [
   {
     year: "2021",
     title: "O Instagram estourou",
-    text: "Uma caneca de frase viralizou e a fila de pedidos passou de 300 em um mês. Foi quando viramos gente grande.",
+    text: "O boca a boca e o Instagram trouxeram os primeiros pedidos em quantidade: chá de bebê, aniversário, presente de fim de ano.",
   },
   {
     year: "2023",
@@ -77,6 +83,12 @@ const steps = [
 ];
 
 export default function SobrePage() {
+  useSeo({
+    title: "Sobre a Caneca Maneira",
+    description:
+      "Quem faz a Caneca Maneira: brindes e personalizados no Mercado Popular Uruguaiana, no centro do Rio de Janeiro. Conheça nosso processo e nossos prazos.",
+  });
+  usePageView("/sobre");
   return (
     <div>
       <section className="relative overflow-hidden bg-magenta pt-16 pb-24">
@@ -109,7 +121,7 @@ export default function SobrePage() {
 
           <div className="relative">
             <img
-              src="/images/hero-mugs.png"
+              src="/images/hero-mugs.jpg"
               alt="Canecas personalizadas da Caneca Maneira"
               className="sticker floaty w-full object-cover"
               loading="lazy"
@@ -123,7 +135,7 @@ export default function SobrePage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {numbers.map((item) => (
             <div key={item.label} className="sticker reveal p-6 text-center">
-              <strong className="block font-display text-4xl text-magenta">
+              <strong className="block font-display text-2xl text-magenta text-balance sm:text-3xl">
                 {item.value}
               </strong>
               <span className="mt-1 block text-sm text-navy/70">
@@ -216,8 +228,8 @@ export default function SobrePage() {
             Uma caneca ou mil. Manda a ideia que a gente cuida do resto.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/orcamento" className="btn btn-primary">
-              Pedir orçamento
+            <Link href="/pedido" className="btn btn-primary">
+              Fazer meu pedido
             </Link>
             <a
               className="btn btn-blue"

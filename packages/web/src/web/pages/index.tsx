@@ -3,13 +3,11 @@ import {
   Baby,
   Beer,
   Briefcase,
+  Building2,
   Calendar,
   BookOpen,
-  Frame,
   Gem,
   Gift,
-  Grid2x2,
-  Shirt,
   Palette,
   Wand2,
   PenTool,
@@ -20,10 +18,23 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { FaWhatsapp } from "react-icons/fa6";
-import { useCategories, useGallery, useProducts, useTestimonials } from "../queries/catalog";
+import { useEffect } from "react";
+import {
+  useAvaliacoes,
+  useCategories,
+  useGallery,
+  useProductLines,
+  useHero,
+  usePriceTiers,
+  useProducts,
+  useTestimonials,
+} from "../queries/catalog";
 import { ProductCard } from "../components/product-card";
 import { SectionTitle, Skeleton, Stars, Wave } from "../components/ui/bits";
-import { site, whatsappLink } from "../lib/site";
+import { FaixaGaleria } from "../components/faixa-galeria";
+import { MIN_B2B, site, whatsappLink } from "../lib/site";
+import { useSeo } from "../hooks/use-seo";
+import { usePageView } from "../hooks/use-analytics";
 
 const categoryIcons: Record<string, typeof Gift> = {
   gift: Gift,
@@ -49,10 +60,12 @@ function isDark(hex: string | null | undefined) {
 const marqueeWords = [
   "Impressão que não desbota",
   "Prova digital antes de produzir",
-  "Frete grátis acima de R$ 199",
+  "Orçamento na hora pelo WhatsApp",
   "A partir de 1 unidade",
-  "Preços especiais para eventos e festas",
+  "Atacado a partir de 15 peças",
+  "Brinde corporativo com nota fiscal",
   "Entrega para todo o Brasil",
+  "No Rio: motoboy ou retirada a combinar",
 ];
 
 const steps = [
@@ -77,12 +90,40 @@ const steps = [
   {
     icon: Truck,
     title: "Chega na sua casa",
-    text: "Embalagem reforçada e rastreio. Se quebrar no caminho, refazemos.",
+    text: "No Rio, motoboy por aplicativo ou retirada a combinar. Fora do Rio, envio com rastreio.",
     color: "bg-magenta",
   },
 ];
 
+/**
+ * Textos do topo enquanto a resposta do servidor não chegou. São os mesmos do
+ * padrão do banco: o visitante nunca vê um topo em branco.
+ */
+const HERO_FALLBACK = {
+  eyebrow: "Feito no Rio de Janeiro",
+  titleTop: "Personalize",
+  titleBottom: "do seu",
+  titleScript: "jeito",
+  highlight: "Vários modelos e cores diferentes",
+  paragraph:
+    "Caneca, camisa ou azulejo com a sua foto, frase ou logo. Conte o que você quer, receba o orçamento na hora e feche pelo WhatsApp.",
+  badges: [
+    "Orçamento sem compromisso",
+    "Prova digital grátis",
+    "Pronto em 3 dias",
+  ],
+  image: "/images/hero-mugs.jpg",
+  imageAlt: "Diversas canecas personalizadas coloridas",
+};
+
 function Hero() {
+  // Topo editável pelo painel (aba "Topo da home").
+  const hero = useHero().data ?? HERO_FALLBACK;
+  // Nota do Google do selo: mesma fonte do bloco lá embaixo (aba "Avaliações").
+  const nota = useAvaliacoes();
+  const rating = nota.data?.rating ?? site.googleRating;
+  const reviewCount = nota.data?.reviewCount ?? site.googleReviewCount;
+
   return (
     <section className="relative overflow-hidden bg-blue">
       <div className="pointer-events-none absolute -top-24 -left-24 size-72 rounded-full bg-yellow/40 blur-[2px]" />
@@ -90,52 +131,67 @@ function Hero() {
 
       <div className="mx-auto grid max-w-7xl items-center gap-10 px-5 pt-14 pb-24 md:px-8 md:pt-20 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="reveal">
-          <span className="tag bg-white">
-            <Star className="size-3 fill-yellow" strokeWidth={2.5} />
-            +2.400 canecas entregues
-          </span>
+          {hero.eyebrow ? (
+            <span className="tag bg-white">
+              <Star className="size-3 fill-yellow" strokeWidth={2.5} />
+              {hero.eyebrow}
+            </span>
+          ) : null}
 
           <h1 className="mt-5 text-[clamp(2.9rem,7vw,5.4rem)]">
-            Personalize
-            <br />
-            do seu <span className="script text-[1.1em] text-magenta">jeito</span>
+            {hero.titleTop}
+            {hero.titleBottom || hero.titleScript ? (
+              <>
+                <br />
+                {hero.titleBottom}
+                {hero.titleScript ? (
+                  <>
+                    {hero.titleBottom ? " " : ""}
+                    <span className="script text-[1.1em] text-magenta">
+                      {hero.titleScript}
+                    </span>
+                  </>
+                ) : null}
+              </>
+            ) : null}
           </h1>
 
-          <p className="mt-4 inline-block bg-yellow px-3 py-1.5 font-display text-lg font-extrabold uppercase">
-            Vários modelos e cores diferentes
-          </p>
+          {hero.highlight ? (
+            <p className="mt-4 inline-block bg-yellow px-3 py-1.5 font-display text-lg font-extrabold uppercase">
+              {hero.highlight}
+            </p>
+          ) : null}
 
-          <p className="mt-5 max-w-lg text-lg text-navy/75">
-            Para estampar com as fotos, frases ou desenhos à sua escolha. Da
-            unidade única ao pedido de 500 — mesma qualidade, mesmo capricho.
-          </p>
+          <p className="mt-5 max-w-lg text-lg text-navy/75">{hero.paragraph}</p>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/catalogo" className="btn btn-primary text-lg">
-              Ver catálogo
+            <Link to="/pedido" className="btn btn-primary text-lg">
+              Fazer meu pedido
             </Link>
-            <Link to="/orcamento" className="btn btn-ghost text-lg">
-              Pedir orçamento
+            <Link to="/modelos" className="btn btn-ghost text-lg">
+              Ver tipos de caneca
+            </Link>
+            <Link to="/empresas" className="btn btn-navy text-lg">
+              <Building2 className="size-5" strokeWidth={2.5} />
+              Sou empresa
             </Link>
           </div>
 
           <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-semibold">
-            {["Frete grátis acima de R$ 199", "Prova digital grátis", "Pronto em 3 dias"].map(
-              (item) => (
-                <span key={item} className="flex items-center gap-1.5">
-                  <CheckCircle2 className="size-4" strokeWidth={2.5} />
-                  {item}
-                </span>
-              ),
-            )}
+            {hero.badges.map((item) => (
+              <span key={item} className="flex items-center gap-1.5">
+                <CheckCircle2 className="size-4" strokeWidth={2.5} />
+                {item}
+              </span>
+            ))}
           </div>
         </div>
 
         <div className="reveal relative" style={{ animationDelay: "120ms" }}>
           <div className="sticker floaty overflow-hidden !rounded-[32px] p-0">
             <img
-              src="/images/hero-mugs.png"
-              alt="Diversas canecas personalizadas coloridas"
+              src={hero.image}
+              alt={hero.imageAlt}
               className="aspect-4/3 w-full object-cover"
             />
           </div>
@@ -146,9 +202,11 @@ function Hero() {
             </span>
             <div>
               <p className="font-display text-sm leading-none font-extrabold">
-                Nota 4,9 / 5
+                Nota {rating.toFixed(1).replace(".", ",")} no Google
               </p>
-              <p className="text-xs text-navy/60">em 800+ avaliações</p>
+              <p className="text-xs text-navy/60">
+                em {reviewCount} {reviewCount === 1 ? "avaliação" : "avaliações"}
+              </p>
             </div>
           </div>
 
@@ -192,8 +250,8 @@ function Categories() {
     <section className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-24">
       <SectionTitle
         kicker="Para cada ocasião"
-        title="Escolhe o clima da"
-        script="sua caneca"
+        title="Inspire-se pelo clima"
+        script="do seu pedido"
       />
 
       <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -239,12 +297,12 @@ function Featured() {
       <div className="mx-auto max-w-7xl px-5 md:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <SectionTitle
-            kicker="Queridinhas da casa"
-            title="As mais"
-            script="pedidas"
+            kicker="Inspiração"
+            title="Modelos que"
+            script="já fizemos"
           />
           <Link to="/catalogo" className="btn btn-ghost">
-            Ver todas as canecas
+            Ver tudo que já fizemos
           </Link>
         </div>
 
@@ -305,13 +363,13 @@ function ArtStudio() {
             style={{ rotate: "-2deg" }}
           >
             <img
-              src="/images/arte-caricatura.jpg"
-              alt="Caneca com caricatura de casal desenhada à mão"
+              src="/images/real-caricatura.jpg"
+              alt="Caneca branca com caricatura de DJ personalizada, produzida pela Caneca Maneira"
               loading="lazy"
               className="aspect-square w-full border-b-[3px] border-navy object-cover"
             />
             <figcaption className="p-3 font-display text-sm font-bold">
-              Caricatura de casal
+              Caricatura personalizada
             </figcaption>
           </figure>
           <figure
@@ -374,8 +432,8 @@ function ArtStudio() {
               <FaWhatsapp className="size-4" />
               Mandar a foto no WhatsApp
             </a>
-            <Link to="/orcamento" className="btn btn-ghost">
-              Pedir orçamento de arte
+            <Link to="/pedido/caneca" className="btn btn-ghost">
+              Fazer meu pedido
             </Link>
           </div>
         </div>
@@ -384,77 +442,107 @@ function ArtStudio() {
   );
 }
 
-const otherProducts = [
-  {
-    icon: Shirt,
-    color: "bg-magenta",
-    title: "Camisas",
-    text: "Camiseta personalizada em sublimação ou DTF: time, evento, uniforme, estampa autoral.",
-    tag: "Sublimação + DTF",
-  },
-  {
-    icon: Grid2x2,
-    color: "bg-blue",
-    title: "Azulejos",
-    text: "Azulejo decorativo com foto, frase ou arte exclusiva. Vai com suporte ou pronto para a parede.",
-    tag: "Sublimação",
-  },
-  {
-    icon: Frame,
-    color: "bg-yellow",
-    title: "Quadros",
-    text: "Quadro sublimado com a sua foto ou ilustração, com acabamento pronto para presentear.",
-    tag: "Sublimação",
-  },
-];
+function ProductLines() {
+  const lines = useProductLines();
 
-function OtherProducts() {
   return (
-    <section className="mx-auto max-w-7xl px-5 pb-20 md:px-8 md:pb-24">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <SectionTitle
-          kicker="Não é só caneca"
-          title="Também personalizamos"
-          script="muito mais"
-        />
+    <section className="mx-auto max-w-7xl px-5 py-20 md:px-8 md:py-24">
+      <SectionTitle
+        kicker="O que a gente personaliza"
+        title="Escolhe o que você quer"
+        script="personalizar"
+        align="center"
+      />
+      <p className="mx-auto mt-4 max-w-2xl text-center text-navy/70">
+        Três linhas, um caminho só: você preenche o pedido, vê a estimativa de
+        preço na hora e a gente fecha tudo pelo WhatsApp.
+      </p>
+
+      <div className="mt-12 grid gap-6 md:grid-cols-3">
+        {lines.isLoading
+          ? Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-[30rem]" />
+            ))
+          : lines.data?.map((line, i) => (
+              <div
+                key={line.slug}
+                className="sticker sticker-hover reveal flex flex-col overflow-hidden p-0"
+                style={{ animationDelay: `${i * 80}ms` }}
+              >
+                <div
+                  className="relative border-b-[3px] border-navy"
+                  style={{ background: line.color }}
+                >
+                  <img
+                    src={line.image}
+                    alt={line.name}
+                    loading="lazy"
+                    className="aspect-4/3 w-full object-cover"
+                  />
+                  <span className="sticker absolute -bottom-4 left-4 !rounded-xl bg-yellow px-3 py-1.5 font-display text-sm font-extrabold">
+                    {line.priceNote}
+                  </span>
+                  {/* Preço de atacado no próprio card: quem compra em
+                      quantidade vê o número sem precisar abrir outra página. */}
+                  {line.wholesaleNote ? (
+                    <span className="sticker absolute -bottom-4 right-4 !rounded-xl bg-mint px-3 py-1.5 font-display text-xs font-extrabold">
+                      {line.wholesaleNote}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-1 flex-col gap-4 p-6 pt-8">
+                  <div>
+                    <h3 className="font-display text-2xl font-extrabold">
+                      {line.name}
+                    </h3>
+                    <p className="mt-1 text-sm text-navy/65">{line.tagline}</p>
+                  </div>
+
+                  <ul className="flex flex-1 flex-col gap-2">
+                    {line.bullets.map((bullet) => (
+                      <li key={bullet} className="flex gap-2 text-sm text-navy/75">
+                        <CheckCircle2
+                          className="mt-0.5 size-4 shrink-0 text-magenta"
+                          strokeWidth={2.5}
+                        />
+                        {bullet}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Link
+                    to={`/pedido/${line.slug}`}
+                    className="btn btn-primary w-full justify-center"
+                  >
+                    Fazer meu pedido
+                  </Link>
+                </div>
+              </div>
+            ))}
+      </div>
+
+      <p className="mt-8 text-center text-sm text-navy/70">
+        Vai levar em quantidade?{" "}
+        <Link to="/empresas" className="font-semibold text-magenta underline">
+          Veja a tabela de atacado
+        </Link>{" "}
+        — a partir de 15 peças o preço por unidade já cai.
+      </p>
+
+      <p className="mt-3 text-center text-sm text-navy/60">
+        Quer outra coisa — quadro, chaveiro, almofada?{" "}
         <a
           href={whatsappLink(
-            "Olá! Quero saber sobre camisas, azulejos e quadros personalizados.",
+            "Olá! Quero personalizar um produto que não está no site.",
           )}
           target="_blank"
           rel="noreferrer"
-          className="btn btn-ghost"
+          className="font-semibold text-magenta underline"
         >
-          <FaWhatsapp className="size-4" />
-          Consultar preço
-        </a>
-      </div>
-
-      <div className="mt-10 grid gap-4 md:grid-cols-3">
-        {otherProducts.map((item, i) => (
-          <div
-            key={item.title}
-            className="sticker sticker-hover reveal flex flex-col gap-3 p-6"
-            style={{ animationDelay: `${i * 70}ms` }}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span
-                className={`grid size-14 place-items-center rounded-2xl border-[3px] border-navy ${item.color}`}
-              >
-                <item.icon className="size-7" strokeWidth={2.5} />
-              </span>
-              <span className="tag bg-cream">{item.tag}</span>
-            </div>
-            <h3 className="font-display text-xl font-bold">{item.title}</h3>
-            <p className="text-sm text-navy/65">{item.text}</p>
-          </div>
-        ))}
-      </div>
-
-      <p className="mt-6 max-w-2xl text-sm text-navy/60">
-        Trabalhamos com sublimação e DTF, então a arte pode ir para tecido,
-        cerâmica e MDF com a mesma qualidade de cor. Tem uma ideia diferente?
-        Chama no WhatsApp que a gente vê o que dá para fazer.
+          Chama no WhatsApp
+        </a>{" "}
+        que a gente vê o que dá para fazer.
       </p>
     </section>
   );
@@ -494,63 +582,149 @@ function HowItWorks() {
   );
 }
 
+/**
+ * O bloco de atacado da home lia 4 preços escritos à mão aqui. Bastava o
+ * Diego mexer na tabela do painel para o site prometer um valor que a gente
+ * não cobra mais. Agora lê a mesma fonte do orçamento e da IA.
+ *
+ * `modelo` é a caneca de porcelana branca — o exemplo mais pedido.
+ */
+const brl = (valor: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(valor);
+
 function Corporate() {
+  const tabela = usePriceTiers();
+  const modelo = tabela.data?.models.find((item) => item.key === "branca");
+
+  /* Uma linha por faixa de atacado, ignorando a de varejo (1 a 14). */
+  const faixas = (modelo?.tiers ?? [])
+    .filter((tier) => tier.min >= MIN_B2B)
+    .map((tier) => ({
+      qty: tier.max >= 10000 ? `${tier.min}+ un.` : `${tier.min} un.`,
+      unit: brl(tier.unit),
+    }));
+
+  /* Desconto real do maior volume contra o varejo — sem número inventado. */
+  const descontoMax =
+    modelo && faixas.length
+      ? Math.round(
+          (1 -
+            (modelo.tiers[modelo.tiers.length - 1]?.unit ?? modelo.retailFrom) /
+              modelo.retailFrom) *
+            100,
+        )
+      : null;
+
   return (
     <section className="mx-auto max-w-7xl px-5 pb-20 md:px-8 md:pb-24">
       <div className="sticker grain relative overflow-hidden bg-navy !border-navy p-8 text-cream md:p-14">
         <div className="pointer-events-none absolute -top-20 -right-16 size-64 rounded-full bg-blue/25" />
-        <div className="relative grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+        <div className="pointer-events-none absolute -bottom-24 -left-20 size-64 rounded-full bg-magenta/20" />
+        <div className="relative grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
           <div>
             <span className="tag border-cream/40 bg-transparent text-yellow">
-              Eventos, festas e formaturas
+              <Building2 className="size-3.5" strokeWidth={2.5} />
+              Para empresas, eventos e revenda
             </span>
             <h2 className="mt-4 text-[clamp(2rem,4vw,3rem)] text-cream">
-              Faça sua caneca
+              Comprou em quantidade?
               <br />
-              <span className="script text-yellow text-[1.15em]">com a gente</span>
+              <span className="script text-yellow text-[1.15em]">
+                o preço muda de patamar
+              </span>
             </h2>
             <p className="mt-4 max-w-lg text-cream/75">
-              Formatura, festa infantil, casamento, evento da empresa ou
-              lembrancinha em quantidade: temos preços especiais para você.
-              Prova digital antes de produzir, embalagem individual e nota
-              fiscal quando precisar.
+              Brinde corporativo, uniforme, kit de onboarding, feira ou
+              formatura: a partir de {MIN_B2B} peças você já paga atacado
+              {descontoMax ? ` — e no maior volume o desconto chega a ${descontoMax}%` : ""}.
+              Com nota fiscal, prova digital e embalagem individual.
             </p>
+
+            <ul className="mt-6 grid gap-2 sm:grid-cols-2">
+              {[
+                "Tabela de preço por volume pública",
+                "NF-e e cadastro de fornecedor",
+                "Arte adaptada ao seu logo",
+                "Entrega no Rio por motoboy ou retirada",
+              ].map((item) => (
+                <li
+                  key={item}
+                  className="flex items-start gap-2 text-sm text-cream/80"
+                >
+                  <CheckCircle2
+                    className="mt-0.5 size-4 shrink-0 text-yellow"
+                    strokeWidth={2.5}
+                  />
+                  {item}
+                </li>
+              ))}
+            </ul>
+
             <div className="mt-7 flex flex-wrap gap-3">
-              <Link to="/orcamento" className="btn btn-primary">
-                Pedir orçamento
+              <Link to="/empresas" className="btn btn-primary">
+                Ver preços por quantidade
               </Link>
               <a
                 href={whatsappLink(
-                  "Olá! Quero um orçamento de canecas personalizadas para evento.",
+                  "Olá! Quero um orçamento corporativo de brindes personalizados em quantidade.",
                 )}
                 target="_blank"
                 rel="noreferrer"
-                className="btn btn-ghost"
+                className="btn btn-ghost bg-cream"
               >
                 <FaWhatsapp className="size-4" />
-                Falar no WhatsApp
+                Falar com o comercial
               </a>
             </div>
           </div>
 
-          <dl className="grid grid-cols-2 gap-4">
-            {[
-              { k: "6 tipos", v: "de caneca para escolher" },
-              { k: "10 un.", v: "quantidade mínima para preço especial" },
-              { k: "72h", v: "para receber a prova digital" },
-              { k: "100%", v: "conferidas antes de embalar" },
-            ].map((stat) => (
-              <div
-                key={stat.k}
-                className="rounded-2xl border-[3px] border-cream/25 p-4"
-              >
-                <dt className="font-display text-2xl font-extrabold text-yellow">
-                  {stat.k}
-                </dt>
-                <dd className="mt-1 text-xs text-cream/65">{stat.v}</dd>
+          <div className="rounded-3xl border-[3px] border-cream/25 p-6">
+            <p className="font-display text-sm font-bold tracking-wide text-yellow uppercase">
+              Exemplo — caneca porcelana 325ml
+            </p>
+            {tabela.isLoading ? (
+              <div className="mt-4 space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-10 animate-pulse rounded-xl bg-cream/15"
+                  />
+                ))}
               </div>
-            ))}
-          </dl>
+            ) : (
+              <dl className="mt-4 divide-y divide-cream/15">
+                {faixas.map((row) => (
+                  <div
+                    key={row.qty}
+                    className="flex items-baseline justify-between gap-4 py-3"
+                  >
+                    <dt className="font-display font-bold text-cream/80">
+                      {row.qty}
+                    </dt>
+                    <dd className="font-display text-2xl font-extrabold text-cream">
+                      {row.unit}
+                      <span className="ml-1 text-xs font-bold text-cream/60">
+                        cada
+                      </span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            <p className="mt-4 text-xs text-cream/55">
+              Camisa, azulejo, chopp, glitter e mágica também têm faixa de
+              atacado — a tabela completa está na página Para empresas.
+            </p>
+            <Link
+              to="/pedido?empresa=1"
+              className="btn btn-blue mt-5 w-full justify-center"
+            >
+              Pedir orçamento para empresa
+            </Link>
+          </div>
         </div>
       </div>
     </section>
@@ -558,55 +732,114 @@ function Corporate() {
 }
 
 function GalleryStrip() {
-  const gallery = useGallery();
+  return (
+    <FaixaGaleria
+      titulo={
+        <SectionTitle
+          kicker="Feito por aqui"
+          title="Trabalhos que"
+          script="já saíram do forno"
+        />
+      }
+    />
+  );
+}
+
+/**
+ * Prova social sem depoimento inventado: enquanto não houver depoimento real
+ * cadastrado no banco, a seção mostra a nota verdadeira do Perfil da Empresa
+ * no Google — o mesmo número declarado no JSON-LD do index.html.
+ */
+/**
+ * Deixa o JSON-LD do index.html batendo com a nota salva no painel. O valor
+ * escrito no HTML serve de primeira leitura para o robô; se o Diego mudar a
+ * nota no painel, isso corrige sem precisar mexer no código.
+ */
+function useRatingNoSchema(rating: number, reviewCount: number) {
+  useEffect(() => {
+    const tags = document.querySelectorAll<HTMLScriptElement>(
+      'script[type="application/ld+json"]',
+    );
+
+    for (const tag of tags) {
+      try {
+        const dados = JSON.parse(tag.textContent ?? "");
+        const lista = Array.isArray(dados) ? dados : [dados];
+        let mexeu = false;
+
+        for (const item of lista) {
+          if (item && typeof item === "object" && item.aggregateRating) {
+            item.aggregateRating.ratingValue = rating.toFixed(1);
+            item.aggregateRating.reviewCount = String(reviewCount);
+            mexeu = true;
+          }
+        }
+
+        if (mexeu) tag.textContent = JSON.stringify(dados);
+      } catch {
+        // JSON-LD estranho não pode derrubar a home.
+      }
+    }
+  }, [rating, reviewCount]);
+}
+
+function GoogleProof() {
+  /* Nota, quantidade e link vêm do painel. Enquanto carrega (ou se der ruim),
+     usa o número conferido que está no site.ts — nunca fica sem nada. */
+  const config = useAvaliacoes();
+  const rating = config.data?.rating ?? site.googleRating;
+  const reviewCount = config.data?.reviewCount ?? site.googleReviewCount;
+  const profileUrl = config.data?.profileUrl ?? site.googleProfileUrl;
+  const invite = config.data?.invite;
+
+  useRatingNoSchema(rating, reviewCount);
 
   return (
-    <section className="pb-20 md:pb-24">
-      <div className="mx-auto max-w-7xl px-5 md:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <SectionTitle
-            kicker="Feito por aqui"
-            title="Trabalhos que"
-            script="já saíram do forno"
-          />
-          <Link to="/galeria" className="btn btn-ghost">
-            Ver galeria completa
-          </Link>
-        </div>
+    <div className="sticker reveal mx-auto max-w-2xl bg-cream p-8 text-center md:p-10">
+      <div className="flex justify-center">
+        <Stars value={Math.round(rating)} />
       </div>
-
-      <div className="no-scrollbar mt-10 flex snap-x gap-4 overflow-x-auto px-5 pb-4 md:px-8">
-        {gallery.isLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-64 w-64 shrink-0" />
-            ))
-          : gallery.data?.map((item, i) => (
-              <figure
-                key={item.id}
-                className="sticker sticker-hover w-64 shrink-0 snap-start overflow-hidden p-0"
-                style={{ rotate: i % 2 === 0 ? "-1.5deg" : "1.5deg" }}
-              >
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  loading="lazy"
-                  className="aspect-square w-full border-b-[3px] border-navy object-cover"
-                />
-                <figcaption className="flex items-center justify-between gap-2 p-3">
-                  <span className="font-display text-sm font-bold">
-                    {item.title}
-                  </span>
-                  <span className="tag bg-mint">{item.tag}</span>
-                </figcaption>
-              </figure>
-            ))}
+      <p className="mt-4 font-display text-4xl font-extrabold text-magenta">
+        {rating.toFixed(1).replace(".", ",")} de 5 no Google
+      </p>
+      <p className="mt-1 text-sm text-navy/70">
+        em {reviewCount}{" "}
+        {reviewCount === 1 ? "avaliação de cliente real" : "avaliações de clientes reais"}
+      </p>
+      <p className="mx-auto mt-4 max-w-md text-sm text-navy/75">
+        {invite ||
+          "A gente prefere mostrar avaliação de verdade a encher a página de elogio inventado. Já pediu com a gente? Deixa a sua — ela aparece aqui."}
+      </p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <a
+          href={profileUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="btn btn-primary"
+        >
+          Ver no Google
+        </a>
+        <a
+          href={whatsappLink("Oi! Quero fazer uma caneca personalizada.")}
+          target="_blank"
+          rel="noreferrer"
+          className="btn btn-ghost"
+        >
+          Falar no WhatsApp
+        </a>
       </div>
-    </section>
+    </div>
   );
 }
 
 function Testimonials() {
   const testimonials = useTestimonials();
+  const avaliacoes = useAvaliacoes();
+  const items = testimonials.data ?? [];
+  const isEmpty = !testimonials.isLoading && items.length === 0;
+  /* Sem depoimento cadastrado, a nota do Google é o único social proof — aí
+     ela aparece de qualquer jeito. Com depoimentos, o Diego decide. */
+  const mostrarNota = isEmpty || avaliacoes.data?.showOnHome !== false;
 
   return (
     <section className="relative bg-blue py-20 md:py-24">
@@ -619,12 +852,17 @@ function Testimonials() {
           align="center"
         />
 
+        {isEmpty ? (
+          <div className="mt-12">
+            <GoogleProof />
+          </div>
+        ) : (
         <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {testimonials.isLoading
             ? Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} className="h-52" />
               ))
-            : testimonials.data?.map((t, i) => (
+            : items.map((t, i) => (
                 <blockquote
                   key={t.id}
                   className="sticker reveal flex flex-col gap-4 p-6"
@@ -651,6 +889,13 @@ function Testimonials() {
                 </blockquote>
               ))}
         </div>
+        )}
+
+        {!isEmpty && mostrarNota ? (
+          <div className="mt-12">
+            <GoogleProof />
+          </div>
+        ) : null}
       </div>
       <Wave className="absolute bottom-0 left-0" fill="#FFF6E3" />
     </section>
@@ -669,8 +914,8 @@ function FinalCta() {
             <span className="script text-magenta text-[1.15em]">caneca maneira?</span>
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-navy/75">
-            Manda a ideia no WhatsApp ou preenche o formulário de orçamento. A
-            gente responde rapidinho — de verdade.
+            Preenche o formulário de pedido em 1 minuto ou manda a ideia
+            direto no WhatsApp. A gente responde rapidinho — de verdade.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <a
@@ -682,8 +927,8 @@ function FinalCta() {
               <FaWhatsapp className="size-5" />
               Chamar no WhatsApp
             </a>
-            <Link to="/catalogo" className="btn btn-ghost text-lg">
-              Comprar agora
+            <Link to="/pedido" className="btn btn-ghost text-lg">
+              Fazer meu pedido
             </Link>
           </div>
           <p className="mt-6 text-xs font-semibold text-navy/60">
@@ -696,16 +941,22 @@ function FinalCta() {
 }
 
 function Index() {
+  useSeo({
+    title: "Caneca Maneira — Personalize do seu jeito",
+    description:
+      "Canecas, camisas e azulejos personalizados com a sua foto, frase ou desenho. Presentes, festas, formaturas e brindes corporativos. Rio de Janeiro, entrega para todo o Brasil.",
+  });
+  usePageView("/");
   return (
     <>
       <Hero />
       <Marquee />
-      <Categories />
+      <ProductLines />
       <Featured />
       <ArtStudio />
       <HowItWorks />
+      <Categories />
       <Corporate />
-      <OtherProducts />
       <GalleryStrip />
       <Testimonials />
       <FinalCta />

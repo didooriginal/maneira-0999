@@ -251,11 +251,42 @@
   animation: spin-slow 22s linear infinite;
 }
 
+/* Entrada do popup: card cresce no centro (PC), faixa sobe do rodapé (celular). */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-pop {
+  animation: pop-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes subir-rodape {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-subir {
+  animation: subir-rodape 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal,
   .marquee-track,
   .floaty,
-  .spin-slow {
+  .spin-slow,
+  .animate-pop,
+  .animate-subir {
     animation: none !important;
   }
 }

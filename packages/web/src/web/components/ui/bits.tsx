@@ -14,7 +14,11 @@ export function Wave({
       viewBox="0 0 1440 90"
       preserveAspectRatio="none"
       aria-hidden="true"
-      className={cn("block h-[52px] w-full", flip && "rotate-180", className)}
+      className={cn(
+        "pointer-events-none block h-[52px] w-full",
+        flip && "rotate-180",
+        className,
+      )}
     >
       <path
         d="M0 44c120-28 240-40 360-24s240 60 360 60 240-44 360-60 240-4 360 24v46H0z"

@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+
+# Painel interno — não indexar
+Disallow: /painel
+
+Sitemap: https://canecamaneira.com.br/sitemap.xml

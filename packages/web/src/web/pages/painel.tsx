@@ -1,76 +1,61 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  CalendarClock,
   ClipboardList,
+  Coffee,
+  Images,
   Lock,
   LogOut,
+  MessageSquarePlus,
+  MessageSquareQuote,
   PackageCheck,
   RefreshCw,
-  Search,
+  ShoppingBag,
+  ShoppingBasket,
+  Star,
+  Tags,
+  LayoutTemplate,
   Wallet,
 } from "lucide-react";
-import { FaWhatsapp } from "react-icons/fa6";
-import {
-  useAdminLogin,
-  useAdminOrders,
-  useAdminQuotes,
-  useAdminSummary,
-  useSetOrderStatus,
-  useSetQuoteStatus,
-} from "../queries/admin";
+import { useAdminLogin, useAdminSummary } from "../queries/admin";
 import { Spinner } from "../components/ui/bits";
-import { formatPrice, whatsappLink } from "../lib/site";
+import { AbaAvaliacoes } from "../components/painel/aba-avaliacoes";
+import { AbaDepoimentos } from "../components/painel/aba-depoimentos";
+import { AbaFaixa } from "../components/painel/aba-faixa";
+import { AbaGaleria } from "../components/painel/aba-galeria";
+import { AbaPedidos } from "../components/painel/aba-pedidos";
+import { AbaPopup } from "../components/painel/aba-popup";
+import { AbaPrecos } from "../components/painel/aba-precos";
+import { AbaProdutos } from "../components/painel/aba-produtos";
+import { AbaProntos } from "../components/painel/aba-prontos";
+import { AbaTipos } from "../components/painel/aba-tipos";
+import { AbaTopo } from "../components/painel/aba-topo";
+import { TrocarSenha } from "../components/painel/trocar-senha";
 import { cn } from "../lib/utils";
+import { useSeo } from "../hooks/use-seo";
 
 const STORAGE_KEY = "caneca-maneira:painel:v1";
 
-const quoteStatuses = ["novo", "respondido", "fechado", "perdido"] as const;
-const orderStatuses = [
-  "aguardando",
-  "pago",
-  "producao",
-  "enviado",
-  "entregue",
-  "cancelado",
+const abas = [
+  { id: "pedidos", label: "Pedidos", icon: ClipboardList },
+  { id: "prontos", label: "Modelos prontos", icon: ShoppingBasket },
+  { id: "tipos", label: "Tipos de caneca", icon: Coffee },
+  { id: "produtos", label: "Produtos", icon: ShoppingBag },
+  { id: "galeria", label: "Galeria", icon: Images },
+  { id: "depoimentos", label: "Depoimentos", icon: MessageSquareQuote },
+  { id: "avaliacoes", label: "Avaliações", icon: Star },
+  { id: "precos", label: "Preços", icon: Tags },
+  { id: "faixa", label: "Faixa sazonal", icon: CalendarClock },
+  { id: "popup", label: "Popup", icon: MessageSquarePlus },
+  { id: "topo", label: "Topo da home", icon: LayoutTemplate },
 ] as const;
 
-const statusTone: Record<string, string> = {
-  novo: "bg-yellow",
-  respondido: "bg-blue",
-  fechado: "bg-mint",
-  perdido: "bg-navy/15",
-  aguardando: "bg-yellow",
-  pago: "bg-mint",
-  producao: "bg-blue",
-  enviado: "bg-blue",
-  entregue: "bg-mint",
-  cancelado: "bg-navy/15",
-};
+type AbaId = (typeof abas)[number]["id"];
 
-const artLabels: Record<string, string> = {
-  "tenho-arte": "Já tem a arte",
-  "tenho-ideia": "Tem a ideia",
-  "preciso-de-ajuda": "Precisa de ajuda",
-};
-
-function formatDate(value: Date | string | number) {
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, "");
-}
-
-/** Monta o link de WhatsApp para responder o cliente direto do painel. */
-function clientWhatsapp(phone: string, message: string) {
-  const digits = onlyDigits(phone);
-  const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
-  return `https://wa.me/${withCountry}?text=${encodeURIComponent(message)}`;
+function abaDoHash(): AbaId {
+  const hash = window.location.hash.replace("#", "");
+  return abas.some((aba) => aba.id === hash) ? (hash as AbaId) : "pedidos";
 }
 
 function Login({ onDone }: { onDone: (password: string) => void }) {
@@ -95,8 +80,8 @@ function Login({ onDone }: { onDone: (password: string) => void }) {
         </div>
         <h1 className="mt-5 text-3xl">Painel interno</h1>
         <p className="mt-2 text-sm text-navy/65">
-          Área restrita da Caneca Maneira. Aqui você vê os orçamentos e pedidos
-          que chegaram pelo site.
+          Área restrita da Caneca Maneira. Aqui você vê os pedidos e edita o
+          site: produtos, fotos, depoimentos, preços e campanhas.
         </p>
 
         <label htmlFor="password" className="field-label mt-6 block">
@@ -135,70 +120,27 @@ function Login({ onDone }: { onDone: (password: string) => void }) {
   );
 }
 
-function StatusPicker({
-  value,
-  options,
-  onChange,
-  disabled,
-}: {
-  value: string;
-  options: readonly string[];
-  onChange: (next: string) => void;
-  disabled: boolean;
-}) {
-  return (
-    <select
-      className="field !w-auto !py-1.5 !text-sm capitalize"
-      value={value}
-      disabled={disabled}
-      onChange={(event) => onChange(event.target.value)}
-    >
-      {options.map((option) => (
-        <option key={option} value={option} className="capitalize">
-          {option}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 export default function PainelPage() {
+  useSeo({
+    title: "Painel interno",
+    description: "Área restrita da equipe Caneca Maneira.",
+    noindex: true,
+  });
+
   const [password, setPassword] = useState("");
-  const [tab, setTab] = useState<"orcamentos" | "pedidos">("orcamentos");
-  const [search, setSearch] = useState("");
+  const [aba, setAba] = useState<AbaId>("pedidos");
 
   useEffect(() => {
     const saved = window.sessionStorage.getItem(STORAGE_KEY);
     if (saved) setPassword(saved);
+    setAba(abaDoHash());
+    const onHash = () => setAba(abaDoHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
+  const queryClient = useQueryClient();
   const summary = useAdminSummary(password);
-  const quotes = useAdminQuotes(password);
-  const orders = useAdminOrders(password);
-  const setQuoteStatus = useSetQuoteStatus();
-  const setOrderStatus = useSetOrderStatus();
-
-  const term = search.trim().toLowerCase();
-
-  const filteredQuotes = useMemo(() => {
-    if (!quotes.data) return [];
-    if (!term) return quotes.data;
-    return quotes.data.filter((quote) =>
-      [quote.code, quote.name, quote.company, quote.email, quote.phone]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(term)),
-    );
-  }, [quotes.data, term]);
-
-  const filteredOrders = useMemo(() => {
-    if (!orders.data) return [];
-    if (!term) return orders.data;
-    return orders.data.filter((order) =>
-      [order.code, order.customerName, order.customerEmail, order.customerPhone]
-        .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(term)),
-    );
-  }, [orders.data, term]);
 
   if (!password) {
     return (
@@ -211,27 +153,33 @@ export default function PainelPage() {
     );
   }
 
+  const parados = summary.data?.quotesStalled ?? 0;
+
   const cards = [
     {
       icon: ClipboardList,
       color: "bg-yellow",
-      label: "Orçamentos",
+      label: "Pedidos recebidos",
       value: summary.data ? String(summary.data.quotesTotal) : "—",
-      hint: summary.data ? `${summary.data.quotesNew} novos` : "",
+      hint: summary.data
+        ? parados > 0
+          ? `${parados} parado(s) há +48h`
+          : `${summary.data.quotesNew} aguardando resposta`
+        : "",
     },
     {
       icon: PackageCheck,
       color: "bg-blue",
-      label: "Pedidos",
-      value: summary.data ? String(summary.data.ordersTotal) : "—",
-      hint: summary.data ? `${summary.data.ordersWaiting} aguardando` : "",
+      label: "Últimos 7 dias",
+      value: summary.data ? String(summary.data.quotesLast7d) : "—",
+      hint: "novos pedidos na semana",
     },
     {
       icon: Wallet,
       color: "bg-mint",
-      label: "Total em pedidos",
-      value: summary.data ? formatPrice(summary.data.revenue) : "—",
-      hint: "cancelados fora da conta",
+      label: "Fechados",
+      value: summary.data ? String(summary.data.quotesClosed) : "—",
+      hint: "pedidos que viraram venda",
     },
   ];
 
@@ -241,7 +189,8 @@ export default function PainelPage() {
         <div>
           <span className="tag bg-yellow">Área restrita</span>
           <h1 className="mt-3 text-[clamp(2rem,4vw,3rem)]">
-            Painel <span className="script text-magenta text-[1.15em]">interno</span>
+            Painel{" "}
+            <span className="script text-magenta text-[1.15em]">interno</span>
           </h1>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -249,9 +198,7 @@ export default function PainelPage() {
             type="button"
             className="btn btn-ghost"
             onClick={() => {
-              void summary.refetch();
-              void quotes.refetch();
-              void orders.refetch();
+              void queryClient.invalidateQueries();
             }}
           >
             <RefreshCw className="size-4" />
@@ -271,265 +218,87 @@ export default function PainelPage() {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+      <div className="mt-8 grid grid-cols-3 gap-3 sm:gap-4">
         {cards.map((card) => (
-          <div key={card.label} className="sticker p-5">
+          <div key={card.label} className="sticker p-3 sm:p-5">
             <span
-              className={`grid size-12 place-items-center rounded-2xl border-[3px] border-navy ${card.color}`}
+              className={`grid size-9 place-items-center rounded-xl border-[3px] border-navy sm:size-12 sm:rounded-2xl ${card.color}`}
             >
-              <card.icon className="size-6" strokeWidth={2.5} />
+              <card.icon className="size-4 sm:size-6" strokeWidth={2.5} />
             </span>
-            <p className="mt-4 font-display text-3xl font-extrabold">
+            <p className="mt-2 font-display text-2xl font-extrabold sm:mt-4 sm:text-3xl">
               {card.value}
             </p>
-            <p className="text-sm font-semibold">{card.label}</p>
-            <p className="mt-1 text-xs text-navy/60">{card.hint}</p>
+            <p className="text-xs font-semibold sm:text-sm">{card.label}</p>
+            <p className="mt-1 hidden text-xs text-navy/60 sm:block">
+              {card.hint}
+            </p>
           </div>
         ))}
       </div>
 
-      <div className="mt-10 flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
-          {(
-            [
-              ["orcamentos", "Orçamentos"],
-              ["pedidos", "Pedidos"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={cn(
-                "rounded-full border-[3px] border-navy px-5 py-2 font-display text-sm font-bold transition",
-                tab === key ? "bg-navy text-cream" : "bg-white hover:bg-yellow",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <nav
+        aria-label="Seções do painel"
+        className="mt-10 flex snap-x gap-2 overflow-x-auto pb-2"
+      >
+        {abas.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={cn(
+              "flex shrink-0 snap-start items-center gap-2 rounded-2xl border-[3px] border-navy px-4 py-2.5 text-sm font-bold transition-transform",
+              aba === item.id
+                ? "bg-navy text-cream shadow-[3px_3px_0_var(--color-yellow)]"
+                : "bg-white hover:-translate-y-0.5",
+            )}
+            aria-current={aba === item.id ? "page" : undefined}
+            onClick={() => {
+              setAba(item.id);
+              window.location.hash = item.id;
+            }}
+          >
+            <item.icon className="size-4" strokeWidth={2.5} />
+            {item.label}
+            {/* Bolinha de "tem gente pra cobrar" — o Diego vê ao entrar,
+                sem precisar abrir a aba. */}
+            {item.id === "pedidos" && parados > 0 ? (
+              <span
+                className={cn(
+                  "rounded-full border-2 border-navy px-2 py-0.5 text-xs font-extrabold",
+                  aba === item.id ? "bg-yellow text-navy" : "bg-magenta text-cream",
+                )}
+                title={`${parados} pedido(s) parado(s) há mais de 48h`}
+              >
+                {parados}
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </nav>
 
-        <div className="relative ml-auto w-full max-w-xs">
-          <Search className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-navy/50" />
-          <input
-            className="field !pl-11"
-            placeholder="Buscar por código, nome, e-mail..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
+      <div className="mt-8">
+        {aba === "pedidos" ? <AbaPedidos password={password} /> : null}
+        {aba === "prontos" ? <AbaProntos password={password} /> : null}
+        {aba === "tipos" ? <AbaTipos password={password} /> : null}
+        {aba === "produtos" ? <AbaProdutos password={password} /> : null}
+        {aba === "galeria" ? <AbaGaleria password={password} /> : null}
+        {aba === "depoimentos" ? <AbaDepoimentos password={password} /> : null}
+        {aba === "avaliacoes" ? <AbaAvaliacoes password={password} /> : null}
+        {aba === "precos" ? <AbaPrecos password={password} /> : null}
+        {aba === "faixa" ? <AbaFaixa password={password} /> : null}
+        {aba === "popup" ? <AbaPopup password={password} /> : null}
+        {aba === "topo" ? <AbaTopo password={password} /> : null}
       </div>
 
-      {tab === "orcamentos" ? (
-        <div className="mt-6 space-y-4">
-          {quotes.isLoading ? (
-            <p className="text-navy/60">Carregando orçamentos...</p>
-          ) : filteredQuotes.length === 0 ? (
-            <p className="text-navy/60">Nenhum orçamento por aqui ainda.</p>
-          ) : (
-            filteredQuotes.map((quote) => (
-              <article key={quote.id} className="sticker p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong className="font-display text-lg">
-                        {quote.name}
-                      </strong>
-                      {quote.company ? (
-                        <span className="tag bg-cream">{quote.company}</span>
-                      ) : null}
-                      <span className={cn("tag capitalize", statusTone[quote.status])}>
-                        {quote.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-navy/60">
-                      {quote.code} · {formatDate(quote.createdAt)} ·{" "}
-                      {quote.clientType === "empresa" ? "Empresa" : "Pessoal"}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusPicker
-                      value={quote.status}
-                      options={quoteStatuses}
-                      disabled={setQuoteStatus.isPending}
-                      onChange={async (next) => {
-                        await setQuoteStatus.mutateAsync({
-                          password,
-                          id: quote.id,
-                          status: next as (typeof quoteStatuses)[number],
-                        });
-                        void quotes.refetch();
-                        void summary.refetch();
-                      }}
-                    />
-                    <a
-                      className="btn btn-primary !px-4 !py-2 !text-sm"
-                      href={clientWhatsapp(
-                        quote.phone,
-                        `Olá, ${quote.name}! Aqui é da Caneca Maneira, sobre o seu orçamento ${quote.code}.`,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <FaWhatsapp className="size-4" />
-                      Responder
-                    </a>
-                  </div>
-                </div>
-
-                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <dt className="text-xs text-navy/55">Produto</dt>
-                    <dd className="font-semibold">{quote.mugType}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-navy/55">Quantidade</dt>
-                    <dd className="font-semibold">{quote.quantity}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-navy/55">Prazo</dt>
-                    <dd className="font-semibold">{quote.deadline ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-navy/55">Arte</dt>
-                    <dd className="font-semibold">
-                      {artLabels[quote.hasArt] ?? quote.hasArt}
-                    </dd>
-                  </div>
-                </dl>
-
-                <p className="mt-4 rounded-2xl border-[3px] border-dashed border-navy/25 bg-cream p-4 text-sm">
-                  {quote.message}
-                </p>
-
-                <p className="mt-3 text-xs text-navy/60">
-                  {quote.phone} · {quote.email}
-                </p>
-              </article>
-            ))
-          )}
-        </div>
-      ) : (
-        <div className="mt-6 space-y-4">
-          {orders.isLoading ? (
-            <p className="text-navy/60">Carregando pedidos...</p>
-          ) : filteredOrders.length === 0 ? (
-            <p className="text-navy/60">Nenhum pedido por aqui ainda.</p>
-          ) : (
-            filteredOrders.map((order) => (
-              <article key={order.id} className="sticker p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong className="font-display text-lg">
-                        {order.customerName}
-                      </strong>
-                      <span className={cn("tag capitalize", statusTone[order.status])}>
-                        {order.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-navy/60">
-                      {order.code} · {formatDate(order.createdAt)} ·{" "}
-                      {order.paymentMethod} · {order.shippingMethod}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <strong className="font-display text-xl">
-                      {formatPrice(order.total)}
-                    </strong>
-                    <StatusPicker
-                      value={order.status}
-                      options={orderStatuses}
-                      disabled={setOrderStatus.isPending}
-                      onChange={async (next) => {
-                        await setOrderStatus.mutateAsync({
-                          password,
-                          id: order.id,
-                          status: next as (typeof orderStatuses)[number],
-                        });
-                        void orders.refetch();
-                        void summary.refetch();
-                      }}
-                    />
-                    <a
-                      className="btn btn-primary !px-4 !py-2 !text-sm"
-                      href={clientWhatsapp(
-                        order.customerPhone,
-                        `Olá, ${order.customerName}! Aqui é da Caneca Maneira, sobre o seu pedido ${order.code}.`,
-                      )}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <FaWhatsapp className="size-4" />
-                      Falar
-                    </a>
-                  </div>
-                </div>
-
-                <ul className="mt-4 space-y-2">
-                  {order.items.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center gap-3 rounded-2xl border-[3px] border-navy/15 p-2"
-                    >
-                      <img
-                        src={item.productImage}
-                        alt={item.productName}
-                        className="size-12 rounded-xl border-[3px] border-navy object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold">
-                          {item.productName}
-                        </p>
-                        <p className="text-xs text-navy/60">
-                          {item.quantity}x {formatPrice(item.unitPrice)}
-                          {item.colorOption ? ` · ${item.colorOption}` : ""}
-                        </p>
-                        {item.customText ? (
-                          <p className="text-xs text-magenta">
-                            Personalização: {item.customText}
-                          </p>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-
-                <p className="mt-4 text-xs text-navy/65">
-                  {order.street}, {order.number}
-                  {order.complement ? ` — ${order.complement}` : ""} ·{" "}
-                  {order.district} · {order.city}/{order.state} · CEP{" "}
-                  {order.zip}
-                </p>
-                <p className="mt-1 text-xs text-navy/60">
-                  {order.customerPhone} · {order.customerEmail}
-                </p>
-                {order.notes ? (
-                  <p className="mt-3 rounded-2xl border-[3px] border-dashed border-navy/25 bg-cream p-3 text-sm">
-                    {order.notes}
-                  </p>
-                ) : null}
-              </article>
-            ))
-          )}
-        </div>
-      )}
-
-      <p className="mt-10 text-xs text-navy/50">
-        Precisa falar com um cliente fora daqui? Use o WhatsApp da loja:{" "}
-        <a
-          className="underline"
-          href={whatsappLink("Olá!")}
-          target="_blank"
-          rel="noreferrer"
-        >
-          abrir conversa
-        </a>
-        .
-      </p>
+      <TrocarSenha
+        password={password}
+        onTrocada={(nova) => {
+          // Continua logado com a senha nova, sem precisar entrar de novo.
+          window.sessionStorage.setItem(STORAGE_KEY, nova);
+          setPassword(nova);
+          void queryClient.invalidateQueries();
+        }}
+      />
     </div>
   );
 }
